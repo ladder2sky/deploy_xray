@@ -1,0 +1,79 @@
+# Xray 自动部署方案 (安全增强版)
+
+这是一个用于在 Ubuntu VPS 上自动部署 Xray 的脚本。本脚本经过优化，包含安全检查、备份回滚和防火墙配置功能，适合新老环境使用。
+
+## 功能特性
+
+*   **系统支持**: Ubuntu 20.04+
+*   **协议配置**:
+    *   2个 VLESS-Reality 端口 (TCP)
+    *   1个 VLESS-WebSocket-TLS 端口 (Nginx 反代)
+*   **多用户**: 默认生成 3 个用户，所有端口通用。
+*   **自动化与安全**:
+    *   **自动安装**: Xray, Nginx, Certbot。
+    *   **安全备份**: 自动备份现有 Nginx 配置，防止误操作。
+    *   **智能检测**: 自动检测现有证书，支持复用或强制续期。
+    *   **防火墙管理**: 自动检测 UFW 状态并开放所需端口 (80, 443, 8443, 30001)。
+    *   **错误回滚**: 遇到错误时支持一键恢复 Nginx 备份。
+    *   **日志记录**: 所有操作记录在 `/var/log/xray_deploy.log`。
+
+## 前置条件
+
+1.  一台 **Ubuntu** 操作系统的 VPS。
+2.  一个域名，并且已经将 **A 记录** 解析到 VPS 的 IP 地址。
+    *   *注意：在运行脚本前，请确保域名解析已生效，并且先**关闭** Cloudflare 的小云朵（仅 DNS），待证书申请成功后再开启 CDN。*
+
+## 使用方法
+
+### 1. 上传脚本
+
+将 `deploy_xray.sh` 文件上传到您的 VPS。您可以使用 SFTP 工具（如 WinSCP, FinalShell）或者直接在 VPS 上创建文件。
+
+或者，您可以直接复制脚本内容，在 VPS 上执行：
+
+```bash
+nano deploy_xray.sh
+# 粘贴内容，然后按 Ctrl+O 保存，Ctrl+X 退出
+```
+
+### 2. 运行脚本
+
+赋予脚本执行权限并运行：
+
+```bash
+chmod +x deploy_xray.sh
+sudo ./deploy_xray.sh
+```
+
+### 3. 交互提示说明
+
+脚本运行过程中可能会出现以下提示，请根据实际情况选择：
+
+*   **移除默认配置**: `发现默认 Nginx 配置... 是否移除?` -> 推荐输入 `y`，除非您明确知道自己在做什么。
+*   **证书复用**: `检测到域名 xxx 已存在证书...` -> 如果您已有有效证书，输入 `n` 可跳过申请；输入 `y` 强制重新申请。
+*   **错误恢复**: `发生错误... 是否恢复 Nginx 备份?` -> 如果安装失败，输入 `y` 可将 Nginx 恢复到脚本运行前的状态。
+
+### 4. 获取配置
+
+脚本运行结束后，会输出所有节点的连接信息，包括：
+*   用户 UUID
+*   Reality 端口的公钥 (PublicKey) 和 ShortId
+*   WS+TLS 端口的配置信息
+
+您可以将这些信息填入客户端（如 v2rayN, Shadowrocket 等）。
+
+## 端口说明
+
+| 端口 | 协议 | 传输方式 | 安全性 | 说明 |
+| :--- | :--- | :--- | :--- | :--- |
+| **8443** | VLESS | TCP | Reality | 直连，速度快，抗封锁强 |
+| **30001** | VLESS | TCP | Reality | 直连，备用端口 |
+| **443** | VLESS | WebSocket | TLS | 可配合 CDN (Cloudflare) 使用，防被墙 |
+
+## 维护与排错
+
+*   **日志文件**: `/var/log/xray_deploy.log` (安装失败请先查看此日志)
+*   **查看 Xray 状态**: `systemctl status xray`
+*   **查看 Nginx 状态**: `systemctl status nginx`
+*   **重启 Xray**: `systemctl restart xray`
+*   **修改配置**: `/usr/local/etc/xray/config.json`
